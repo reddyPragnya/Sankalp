@@ -1,184 +1,94 @@
-# # app.py
-
-# import streamlit as st
-# import json
-# from src.llm_service import get_response, detect_language
-
-# from transformers import AutoModelForCausalLM, AutoTokenizer
-# import torch
-
-# # ------------------------------
-# # Load LLM model
-# # ------------------------------
-# tokenizer = AutoTokenizer.from_pretrained("Salesforce/codegen-350M-mono")
-# model = AutoModelForCausalLM.from_pretrained("Salesforce/codegen-350M-mono")
-
-# def real_generator(prompt, max_new_tokens=800, do_sample=True, temperature=0.7):
-#     """
-#     Real generator using HuggingFace model.
-#     """
-#     try:
-#         inputs = tokenizer(prompt, return_tensors="pt")
-#         outputs = model.generate(
-#             **inputs, max_new_tokens=max_new_tokens, do_sample=do_sample, temperature=temperature
-#         )
-#         text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-#         return [{"generated_text": text}]
-#     except Exception as e:
-#         print(f"Generator error: {e}")
-#         return []
-
-# # ------------------------------
-# # Optional dummy generator
-# # ------------------------------
-# def dummy_generator(prompt, max_new_tokens=100, do_sample=True, temperature=0.7):
-#     return [{"generated_text": json.dumps({
-#         "platform": "C#",
-#         "topic": prompt,
-#         "steps": ["Step 1", "Step 2", "Step 3"],
-#         "code_snippet": "// Example code",
-#         "gotchas": ["Gotcha 1", "Gotcha 2"],
-#         "difficulty": "Easy",
-#         "docs_link": "https://docs.unity3d.com/Manual/index.html"
-#     })}]
-
-# # ------------------------------
-# # Streamlit App
-# # ------------------------------
-# def main():
-#     st.set_page_config(page_title="CodeXR AI Assistant", page_icon="🤖")
-#     st.title("CodeXR AI Assistant for AR/VR Developers")
-
-#     st.markdown("Enter your programming problem or task below:")
-
-#     prompt = st.text_area("Problem Prompt", height=150)
-#     use_llm = st.checkbox("Use AI generator for dynamic response", value=False)
-
-#     if st.button("Get Response") and prompt.strip():
-#         generator_func = real_generator if use_llm else None
-
-#         # Get dynamic response from llm_service
-#         response = get_response(prompt, generator=generator_func)
-
-#         # Display difficulty
-#         st.subheader("✅ Difficulty")
-#         st.info(response["difficulty"])
-
-#         # Display steps/subtasks
-#         st.subheader("📝 Steps")
-#         for i, task in enumerate(response["steps"], start=1):
-#             st.write(f"{i}. {task}")
-
-#         # Display code snippet
-#         st.subheader("💻 Code Snippet")
-#         language = detect_language(prompt).lower()
-#         if language == "c#":
-#             st.code(response["code_snippet"], language="csharp")
-#         elif language == "c++":
-#             st.code(response["code_snippet"], language="cpp")
-#         elif language == "python":
-#             st.code(response["code_snippet"], language="python")
-#         elif language == "javascript":
-#             st.code(response["code_snippet"], language="javascript")
-#         else:
-#             st.code(response["code_snippet"], language="text")
-
-#         # Display gotchas
-#         st.subheader("⚠️ Gotchas / Best Practices")
-#         for gotcha in response["gotchas"]:
-#             st.write(f"- {gotcha}")
-
-#         # Documentation link
-#         st.subheader("📚 Documentation Link")
-#         st.markdown(f"[Click here]({response['docs_link']})", unsafe_allow_html=True)
-
-#         # Display raw JSON response
-#         st.subheader("🗄 Raw JSON Response")
-#         st.code(json.dumps(response, indent=2), language="json")
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-
 import streamlit as st
+from src.llm_service import get_response
 import json
-from src.llm_service import get_response, detect_language
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+import re
 
-# ------------------------------
-# Load LLM model
-# ------------------------------
-tokenizer = AutoTokenizer.from_pretrained("Salesforce/codegen-350M-mono")
-model = AutoModelForCausalLM.from_pretrained("Salesforce/codegen-350M-mono")
+st.set_page_config(
+    page_title="CodeXR: AI Coding Assistant for AR/VR Developers",
+    page_icon="🕶️",
+    layout="centered",
+)
 
-def real_generator(prompt, max_new_tokens=800, do_sample=True, temperature=0.7):
-    """
-    Real generator using HuggingFace model.
-    """
-    try:
-        inputs = tokenizer(prompt, return_tensors="pt")
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=do_sample,
-            temperature=temperature,
-            pad_token_id=tokenizer.eos_token_id
+st.title("🕶️ CodeXR: AI Coding Assistant for AR/VR Developers")
+st.markdown("Ask me anything about **Unity, Unreal, or Shaders!**")
+
+# User input
+prompt = st.text_input("Enter your developer question:", "")
+
+def detect_language(code: str) -> str:
+    """Simple heuristic-based language detection for AR/VR snippets."""
+    code = code.lower()
+
+    if "#include" in code or "uclass" in code or "uproperty" in code:
+        return "cpp"  # Unreal Engine (C++)
+    if "shader" in code or "sampler2d" in code or "float4" in code:
+        return "hlsl"  # Shader code
+    if "glsl" in code or "uniform" in code:
+        return "glsl"
+    if "public class" in code or "monobehaviour" in code:
+        return "csharp"  # Unity C#
+    if "function" in code and "blueprint" in code:
+        return "python"  # Unreal Blueprints pseudo-Python
+
+    return "csharp"  # Default fallback
+
+
+if st.button("Get Answer") and prompt.strip():
+    with st.spinner("Generating response..."):
+        response = get_response(prompt)
+
+    # ---- Subtasks ----
+    st.subheader("📝 Subtasks")
+    if response.get("subtasks"):
+        for task in response["subtasks"]:
+            st.markdown(f"- {task}")
+    else:
+        st.warning("Could not parse structured subtasks")
+
+    # ---- Code Snippet ----
+    st.subheader("💻 Code Snippet")
+    code_block = response.get("code", "").strip()
+
+    if code_block:
+        # Clean accidental "Question:" / "Answer:" text
+        cleaned = "\n".join(
+            line for line in code_block.splitlines()
+            if not line.startswith("Question:") and not line.startswith("Answer:")
         )
-        text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return [{"generated_text": text}]
-    except Exception as e:
-        print(f"Generator error: {e}")
-        return []
+        lang = detect_language(cleaned)
+        st.code(cleaned, language=lang)
+    else:
+        st.info("No code snippet was generated.")
 
-# ------------------------------
-# Streamlit App
-# ------------------------------
-def main():
-    st.set_page_config(page_title="CodeXR AI Assistant", page_icon="🤖")
-    st.title("CodeXR AI Assistant for AR/VR Developers")
-    st.markdown("Enter your programming problem or task below:")
+    # ---- Gotchas / Best Practices ----
+    st.subheader("⚠️ Gotchas / Best Practices")
+    if response.get("gotchas"):
+        for g in response["gotchas"]:
+            st.markdown(f"- {g}")
+    else:
+        st.info("No best practices extracted")
 
-    prompt = st.text_area("Problem Prompt", height=150)
+    # ---- Difficulty ----
+    st.subheader("🎯 Difficulty Rating")
+    difficulty = response.get("difficulty", "Unknown").lower()
 
-    if st.button("Get Response") and prompt.strip():
-        # Always use AI generator now
-        response = get_response(prompt, generator=real_generator)
+    if "beginner" in difficulty:
+        st.markdown("🟢 **Beginner**")
+    elif "intermediate" in difficulty:
+        st.markdown("🟠 **Intermediate**")
+    elif "advanced" in difficulty:
+        st.markdown("🔴 **Advanced**")
+    else:
+        st.markdown("⚪ Unknown")
 
-        # Display difficulty
-        st.subheader("✅ Difficulty")
-        st.info(response["difficulty"])
+    # ---- Docs Link ----
+    st.subheader("📖 Documentation Link")
+    docs_link = response.get("docs_link", "").strip()
+    if docs_link and docs_link != "#":
+        st.markdown(f"[Official Docs]({docs_link})")
+    else:
+        st.markdown("[Unity Docs](https://docs.unity.com/) | [Unreal Docs](https://docs.unrealengine.com/)")
 
-        # Display steps/subtasks
-        st.subheader("📝 Steps")
-        for i, task in enumerate(response["steps"], start=1):
-            st.write(f"{i}. {task}")
-
-        # Display code snippet
-        st.subheader("💻 Code Snippet")
-        language = detect_language(prompt).lower()
-        lang_map = {
-            "c#": "csharp",
-            "c++": "cpp",
-            "python": "python",
-            "javascript": "javascript"
-        }
-        st.code(response["code_snippet"], language=lang_map.get(language, "text"))
-
-        # Display gotchas
-        st.subheader("⚠️ Gotchas / Best Practices")
-        for gotcha in response["gotchas"]:
-            st.write(f"- {gotcha}")
-
-        # Documentation link
-        st.subheader("📚 Documentation Link")
-        st.markdown(f"[Click here]({response['docs_link']})", unsafe_allow_html=True)
-
-        # Display raw JSON response
-        st.subheader("🗄 Raw JSON Response")
-        st.code(json.dumps(response, indent=2), language="json")
-
-if __name__ == "__main__":
-    main()
+    # ---- Raw JSON ----
+    st.subheader("🛠️ Raw JSON Output")
+    st.json(response)
