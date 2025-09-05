@@ -1,0 +1,26 @@
+Home
+Products
+ARCore
+Send feedback
+ARCore support for Unity developers
+Stay organized with collections
+Save and categorize content based on your preferences.
+Developers starting new projects should use the latest
+ARCore Extensions for AR
+Foundation
+.
+Get started with ARCore Extensions
+Legacy SDK for Unity (deprecated)
+The (legacy)
+ARCore SDK for Unity
+was deprecated in 2021 and is no longer
+supported. This legacy SDK could not be used with Unity 2020 and later.
+Send feedback
+Except as otherwise noted, the content of this page is licensed under the
+Creative Commons Attribution 4.0 License
+, and code samples are licensed under the
+Apache 2.0 License
+. For details, see the
+Google Developers Site Policies
+. Java is a registered trademark of Oracle and/or its affiliates.
+Last updated 2024-10-31 UTC.
